@@ -6,7 +6,9 @@ pragma experimental ABIEncoderV2;
 import {DistributionTypes} from '../libraries/DistributionTypes.sol';
 import {SafeMath} from '../dependencies/openzeppelin/contracts/SafeMath.sol';
 
-contract HipoDistributionManager {
+import {IHipoDistributionManager} from '../interfaces/IHipoDistributionManager.sol';
+
+contract HipoDistributionManager is IHipoDistributionManager {
 
     using SafeMath for uint256;
 
@@ -35,7 +37,7 @@ contract HipoDistributionManager {
     }
 
     function configureAssets(DistributionTypes.AssetConfigInput[] calldata assetsConfigInput)
-        external
+        external override
         {
             require(msg.sender == EMISSION_MANAGER, 'ONLY_EMISSION_MANAGER');
 

@@ -7,9 +7,11 @@ import {HipoDistributionManager} from './HipoDistributionManager.sol';
 import {DistributionTypes} from '../libraries/DistributionTypes.sol';
 import {IERC20} from '../dependencies/openzeppelin/contracts/IERC20.sol';
 import {IERC20Detailed} from '../dependencies/openzeppelin/contracts/IERC20Detailed.sol';
+import {IHipoIncentivesController} from '../interfaces/IHipoIncentivesController.sol';
 import {SafeMath} from '../dependencies/openzeppelin/contracts/SafeMath.sol';
+import {VersionedInitializable} from '../utils/VersionedInitializable.sol';
 
-contract HipoIncentivesController is HipoDistributionManager {
+contract HipoIncentivesController is HipoDistributionManager, VersionedInitializable, IHipoIncentivesController {
 
     using SafeMath for uint256;
     uint256 public constant REVISION = 1;
@@ -18,6 +20,8 @@ contract HipoIncentivesController is HipoDistributionManager {
 
     IERC20 public immutable REWARD_TOKEN;
     address public immutable REWARDS_VAULT;
+
+    uint256 public constant HIPO_INCENTIVES_CONTROLLER_REVISION = 0x1;
 
     event RewardsAccrued(address indexed user, uint256 amount);
     event RewardsClaimed(address indexed user, address indexed to, uint256 amount);
@@ -36,7 +40,7 @@ contract HipoIncentivesController is HipoDistributionManager {
         address user,
         uint256 userBalance,
         uint256 totalSupply
-        ) external {
+        ) external override {
             uint256 accruedRewards = _updateUserAssetInternal(user, msg.sender, userBalance, totalSupply);
             if (accruedRewards != 0) {
                 _usersUnclaimedRewards[user] = _usersUnclaimedRewards[user].add(accruedRewards);
@@ -44,11 +48,32 @@ contract HipoIncentivesController is HipoDistributionManager {
             }
         }
 
+    function getRewardsBalance(address[] calldata assets, address user)
+        external
+        view
+        override
+        returns (uint256) {
+            uint256 unclaimedRewards = _usersUnclaimedRewards[user];
+
+            DistributionTypes.UserStakeInput[] memory userState =
+                new DistributionTypes.UserStakeInput[](assets.length);
+
+            for (uint256 i = 0; i < assets.length; i++) {
+                userState[i].underlyingAsset = assets[i];
+                userState[i].stakedByUser = IERC20(assets[i]).balanceOf(user);
+                userState[i].totalStaked = IERC20(assets[i]).totalSupply();
+            }
+            unclaimedRewards = unclaimedRewards.add(_getUnclaimedRewards(user, userState));
+
+            return unclaimedRewards;
+
+        }
+
     function claimRewards(
         address[] calldata assets,
         uint256 amount,
         address to
-        ) external returns (uint256) {
+        ) external override returns (uint256) {
             if (amount == 0) {
                 return 0;
             }
@@ -86,7 +111,11 @@ contract HipoIncentivesController is HipoDistributionManager {
             return amountToClaim;
         }
 
-        function getUserUnclaimedRewards(address _user) external view returns (uint256) {
-            return _usersUnclaimedRewards[_user];
-        }
+    function getUserUnclaimedRewards(address _user) external view returns (uint256) {
+        return _usersUnclaimedRewards[_user];
+    }
+
+    function getRevision() internal pure override returns (uint256) {
+        return HIPO_INCENTIVES_CONTROLLER_REVISION;
+    }
 }
